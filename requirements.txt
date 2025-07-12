@@ -5,8 +5,7 @@
 # Whisper
 faster-whisper
 
-# TTS (Coqui)
-TTS
+
 
 # Wav2Lip + utilities
 numpy
@@ -17,7 +16,6 @@ numba
 matplotlib
 ffmpeg-python
 sounddevice
-gTTS
 pydub
 # CLI downloader if needed
 gdown
