@@ -14,8 +14,7 @@ def run_lipsync(video_path, audio_path, output_path):
         "--audio", os.path.abspath(audio_path),
         "--outfile", os.path.abspath(output_path),
         "--nosmooth",
-        "--resize_factor", "4"
-
+       "--static", "True"
     ]
 
     subprocess.run(command)
