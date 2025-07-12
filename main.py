@@ -16,4 +16,4 @@ response = generate_response(transcript)
 text_to_speech(response, "./output_audio.wav")
 print("done tts")
 # Step 4: Generate talking head video
-run_lipsync("./medusa.png", "./output_audio.wav", "./result.mp4")
+run_lipsync("./medusa_01.mp4", "./output_audio.wav", "./result.mp4")
