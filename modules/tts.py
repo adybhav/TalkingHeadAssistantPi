@@ -1,16 +1,18 @@
-from gtts import gTTS
-from pydub import AudioSegment
-import os
+import config
 
-def text_to_speech(text, out_path):
-    # Generate MP3 using gTTS
-    tts = gTTS(text=text, lang='en')
-    temp_mp3 = out_path.replace(".wav", ".mp3")
-    tts.save(temp_mp3)
+from TTS.api import TTS
 
-    # Convert to WAV for Wav2Lip
-    sound = AudioSegment.from_mp3(temp_mp3)
-    sound.set_frame_rate(16000).set_channels(1).export(out_path, format="wav")
+# Load the YourTTS model (zero-shot voice cloning)
+tts = TTS(
+    model_name="tts_models/multilingual/multi-dataset/your_tts",
+    progress_bar=False
+)
+tts.to("cuda")  # Use GPU if available
 
-    os.remove(temp_mp3)
-    print(f"✅ Generated speech and saved to {out_path}")
+def text_to_speech(text, out_path, speaker_wav="./medusa_audio.wav"):
+    tts.tts_to_file(
+        text=text,
+        speaker_wav=speaker_wav,
+        language="en",
+        file_path=out_path
+    )
