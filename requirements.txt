@@ -1,0 +1,23 @@
+# PyTorch stack (CUDA 12.2 / cu128)
+#pip install torch==2.7.1+cu128 torchaudio==2.7.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+
+
+# Whisper
+faster-whisper
+
+# TTS (Coqui)
+TTS
+
+# Wav2Lip + utilities
+numpy
+scipy
+tqdm
+opencv-python
+numba
+matplotlib
+ffmpeg-python
+sounddevice
+gTTS
+pydub
+# CLI downloader if needed
+gdown
