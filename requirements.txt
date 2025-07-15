@@ -16,3 +16,6 @@ sounddevice
 pydub
 # CLI downloader if needed
 gdown
+
+#always listening
+speechrecognition
