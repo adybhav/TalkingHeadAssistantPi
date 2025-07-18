@@ -19,3 +19,6 @@ gdown
 
 #always listening
 speechrecognition
+requests
+TTS
+Flask
