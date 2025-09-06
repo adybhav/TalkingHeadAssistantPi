@@ -1,110 +1,78 @@
 import os
 os.environ["ALSA_LOG_LEVEL"] = "none"  # silence ALSA spam
 
-import json
-import socket
 import time
+import signal
+import subprocess
 import requests
 import speech_recognition as sr
 
-# -------- Config --------
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
-IDLE_VIDEO    = os.path.join(BASE_DIR, "idle.mp4")
-OUTPUT_VIDEO  = os.path.join(BASE_DIR, "result.mp4")
-AUDIO_FILE    = os.path.join(BASE_DIR, "input_audio.wav")
-SERVER_URL    = "http://192.168.1.157:5000/process"   # your desktop server
-WAKE_WORDS    = ["hey medusa", "gaze into my eyes"]
-MPV_SOCKET    = "/tmp/medusa-mpv.sock"
-ROTATE_DEG    = 90   # set to 270 if rotated the other way
+# ---- Paths (absolute avoids surprises) ----
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+IDLE_VIDEO   = os.path.join(BASE_DIR, "idle.mp4")
+OUTPUT_VIDEO = os.path.join(BASE_DIR, "result.mp4")
+AUDIO_FILE   = os.path.join(BASE_DIR, "input_audio.wav")
 
-# -------- mpv control via IPC --------
-def start_mpv_idle():
-    """Launch a single mpv instance in DRM fullscreen, rotated, looping idle.mp4, with IPC socket."""
-    # clean old socket
-    try:
-        if os.path.exists(MPV_SOCKET):
-            os.remove(MPV_SOCKET)
-    except Exception:
-        pass
+# ---- Wake & server ----
+WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
+SERVER_URL = "http://192.168.1.157:5000/process"  # your desktop server
 
-    cmd = [
-        "mpv",
-        "--no-terminal", "--really-quiet",
-        "--fs",
-        "--gpu-context=drm",            # render directly to console
-        f"--video-rotate={ROTATE_DEG}", # rotate both idle & result
-        "--idle=yes",                   # keep mpv alive between loads
-        "--keep-open=no",
-        "--loop-file=inf",              # loop idle
-        f"--input-ipc-server={MPV_SOCKET}",
-        IDLE_VIDEO,
-    ]
-    # Start detached; mpv will own the screen
-    os.spawnlp(os.P_NOWAIT, cmd[0], *cmd)
+# ---- Video settings ----
+ROTATE_DEG = 270   # change to 270 if needed
+# Fill the whole screen: panscan zooms while preserving aspect (no stretching).
+COMMON_MPV_FLAGS = [
+    "--no-terminal", "--really-quiet",
+    "--fs",
+    "--gpu-context=drm",
+    f"--video-rotate={ROTATE_DEG}",
+    "--input-default-bindings=no",
+    "--input-vo-keyboard=no",
+]
+ #   "--panscan=1.0",         # zoom to fill screen
 
-    # wait for socket to appear
-    for _ in range(50):
-        if os.path.exists(MPV_SOCKET):
-            # slight extra delay to ensure mpv is ready to accept commands
-            time.sleep(0.2)
-            return
-        time.sleep(0.1)
-    # If we get here, mpv didn't start; let it fail loudly on next command.
 
-def mpv_send(cmd_dict):
-    """Send a single command to mpv IPC and return parsed response lines (if any)."""
-    data = (json.dumps(cmd_dict) + "\n").encode("utf-8")
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(MPV_SOCKET)
-        s.sendall(data)
-        # read a few responses (mpv responds with one line per command)
-        s.settimeout(1.0)
-        try:
-            buf = s.recv(4096)
-            if not buf:
-                return None
-            # mpv can send multiple JSON lines; split and parse best-effort
-            lines = [l for l in buf.decode("utf-8", "ignore").splitlines() if l.strip()]
-            parsed = []
-            for line in lines:
-                try:
-                    parsed.append(json.loads(line))
-                except Exception:
-                    pass
-            return parsed
-        except socket.timeout:
-            return None
+idle_process = None
 
-def mpv_wait_for_endfile():
-    """Block until mpv reports end of current file, then return."""
-    # Subscribe to events by reading the socket continuously until end-file arrives.
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(MPV_SOCKET)
-        s.settimeout(None)
-        while True:
-            line = s.recv(4096).decode("utf-8", "ignore")
-            for entry in [l for l in line.splitlines() if l.strip()]:
-                try:
-                    evt = json.loads(entry)
-                    if evt.get("event") == "end-file":
-                        return
-                except Exception:
-                    continue
-
-def show_result_then_return_to_idle():
-    """Load result.mp4, wait for it to finish, then restore idle loop—all inside the same mpv."""
-    if not os.path.exists(OUTPUT_VIDEO):
+# ---------- Video (mpv / DRM / fullscreen) ----------
+def start_idle_video():
+    """Start looping idle video with mpv and keep a handle to it."""
+    global idle_process
+    if idle_process and idle_process.poll() is None:
         return
-    # play result once
-    mpv_send({"command": ["set", "loop-file", "no"]})
-    mpv_send({"command": ["loadfile", OUTPUT_VIDEO, "replace"]})
-    # wait for it to finish
-    mpv_wait_for_endfile()
-    # back to idle looping
-    mpv_send({"command": ["set", "loop-file", "inf"]})
-    mpv_send({"command": ["loadfile", IDLE_VIDEO, "replace"]})
+    if not os.path.exists(IDLE_VIDEO):
+        return
 
-# -------- Audio / Wake --------
+    cmd = ["mpv", *COMMON_MPV_FLAGS, "--loop-file=inf", IDLE_VIDEO]
+    idle_process = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid
+    )
+    time.sleep(0.3)  # give mpv a moment to appear
+
+def stop_idle_video():
+    """Stop idle video cleanly."""
+    global idle_process
+    if idle_process and idle_process.poll() is None:
+        idle_process.send_signal(signal.SIGINT)
+        try:
+            idle_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            idle_process.kill()
+    idle_process = None
+
+def play_video(path):
+    """Play a single video fullscreen; returns when it ends."""
+    abs_path = os.path.abspath(path)
+    if not os.path.exists(abs_path):
+        return
+    cmd = ["mpv", *COMMON_MPV_FLAGS, "--loop-file=no", abs_path]
+    subprocess.run(
+        cmd,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+# ---------- Audio / Wake ----------
 def listen_for_wake_word():
     recognizer = sr.Recognizer()
     mic = sr.Microphone()
@@ -132,7 +100,7 @@ def record_user_input():
     with open(AUDIO_FILE, "wb") as f:
         f.write(audio.get_wav_data())
 
-# -------- Network --------
+# ---------- Network ----------
 def send_audio_to_server():
     try:
         with open(AUDIO_FILE, "rb") as audio_file:
@@ -145,14 +113,16 @@ def send_audio_to_server():
     except requests.RequestException:
         return False
 
-# -------- Main loop --------
+# ---------- Main loop ----------
 def run_client():
-    start_mpv_idle()            # mpv owns the screen, loops idle rotated
+    start_idle_video()  # keep idle looping in the background
     while True:
-        listen_for_wake_word()  # idle keeps showing underneath
-        record_user_input()
+        listen_for_wake_word()   # idle keeps playing
+        record_user_input()      # idle still playing
         if send_audio_to_server():
-            show_result_then_return_to_idle()
+            stop_idle_video()    # pause idle
+            play_video(OUTPUT_VIDEO)
+            start_idle_video()   # resume idle
 
 if __name__ == "__main__":
     run_client()
