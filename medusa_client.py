@@ -16,9 +16,9 @@ AUDIO_FILE   = os.path.join(BASE_DIR, "input_audio.wav")
 # ---- Display + rotation ----
 # Set these to your ROTATED screen resolution.
 # If your TV is 1920x1080 landscape and you rotate 90°, set 1080x1920.
-SCREEN_W = 1080
-SCREEN_H = 1920
-ROTATE_DEG = 90  # use 270 if rotated the other way
+SCREEN_W = 720
+SCREEN_H = 1280
+ROTATE_DEG = 270  # use 270 if rotated the other way
 
 # mpv filter that scales to COVER the screen (no stretch), then crops overflow
 VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,crop={SCREEN_W}:{SCREEN_H}"
