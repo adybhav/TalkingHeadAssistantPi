@@ -7,33 +7,38 @@ import subprocess
 import requests
 import speech_recognition as sr
 
-# ---- Paths (absolute avoids surprises) ----
+# ---- Paths ----
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 IDLE_VIDEO   = os.path.join(BASE_DIR, "idle.mp4")
 OUTPUT_VIDEO = os.path.join(BASE_DIR, "result.mp4")
 AUDIO_FILE   = os.path.join(BASE_DIR, "input_audio.wav")
 
+# ---- Display + rotation ----
+# Set these to your ROTATED screen resolution.
+# If your TV is 1920x1080 landscape and you rotate 90°, set 1080x1920.
+SCREEN_W = 720
+SCREEN_H = 1280
+ROTATE_DEG = 270  # use 270 if rotated the other way
+
+# mpv filter that scales to COVER the screen (no stretch), then crops overflow
+VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,crop={SCREEN_W}:{SCREEN_H}"
+
 # ---- Wake & server ----
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
-SERVER_URL = "http://192.168.1.157:5000/process"  # your desktop server
-
-# ---- Video settings ----
-ROTATE_DEG = 270   # change to 270 if needed
-# Fill the whole screen: panscan zooms while preserving aspect (no stretching).
-COMMON_MPV_FLAGS = [
-    "--no-terminal", "--really-quiet",
-    "--fs",
-    "--gpu-context=drm",
-    f"--video-rotate={ROTATE_DEG}",
-    "--input-default-bindings=no",
-    "--input-vo-keyboard=no",
-]
- #   "--panscan=1.0",         # zoom to fill screen
-
+SERVER_URL = "http://192.168.1.157:5000/process"
 
 idle_process = None
 
-# ---------- Video (mpv / DRM / fullscreen) ----------
+COMMON_MPV_FLAGS = [
+    "--no-terminal", "--really-quiet",
+    "--fs",
+    "--gpu-context=drm",               # render directly to console (no X)
+    f"--video-rotate={ROTATE_DEG}",
+    f"--vf={VF_COVER}",                # force fill screen regardless of source AR
+    "--input-default-bindings=no",
+    "--input-vo-keyboard=no",
+]
+
 def start_idle_video():
     """Start looping idle video with mpv and keep a handle to it."""
     global idle_process
@@ -48,7 +53,7 @@ def start_idle_video():
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         preexec_fn=os.setsid
     )
-    time.sleep(0.3)  # give mpv a moment to appear
+    time.sleep(0.3)  # let mpv appear
 
 def stop_idle_video():
     """Stop idle video cleanly."""
@@ -72,7 +77,6 @@ def play_video(path):
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
 
-# ---------- Audio / Wake ----------
 def listen_for_wake_word():
     recognizer = sr.Recognizer()
     mic = sr.Microphone()
@@ -100,7 +104,6 @@ def record_user_input():
     with open(AUDIO_FILE, "wb") as f:
         f.write(audio.get_wav_data())
 
-# ---------- Network ----------
 def send_audio_to_server():
     try:
         with open(AUDIO_FILE, "rb") as audio_file:
@@ -113,7 +116,6 @@ def send_audio_to_server():
     except requests.RequestException:
         return False
 
-# ---------- Main loop ----------
 def run_client():
     start_idle_video()  # keep idle looping in the background
     while True:
