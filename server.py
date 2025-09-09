@@ -19,6 +19,7 @@ def process_audio():
 
     start = time.time()
     transcript = transcribe_audio(audio_path)
+    print(transcript)
     response = generate_response(transcript)
     text_to_speech(response, "output_audio.wav")
     run_lipsync("medusa_01.mp4", "output_audio.wav", output_video_path)
