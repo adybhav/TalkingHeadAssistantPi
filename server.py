@@ -22,7 +22,7 @@ def process_audio():
     print(transcript)
     response = generate_response(transcript)
     text_to_speech(response, "output_audio.wav")
-    run_lipsync("medusa_01.mp4", "output_audio.wav", output_video_path)
+    run_lipsync("idle.mp4", "output_audio.wav", output_video_path)
     end = time.time()
 
     print(f"✅ Generation complete in {end - start:.2f} sec")

@@ -18,7 +18,8 @@ def run_lipsync(video_path, audio_path, output_path):
         "-vf", "scale=720:1280",
         resized_video_path
     ]
-    subprocess.run(resize_cmd, check=True)
+    subprocess.run(resize_cmd, check=True,        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL)
 
     # Wav2Lip command
     command = [
@@ -28,10 +29,11 @@ def run_lipsync(video_path, audio_path, output_path):
         "--face", os.path.abspath(resized_video_path),
         "--audio", os.path.abspath(audio_path),
         "--outfile", os.path.abspath(output_path),
-        "--nosmooth",
-        "--static", "True",
-        "--resize_factor", "2"
+        "--nosmooth"
     ]
 
     # Run Wav2Lip
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=True,       stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL)
+
+
