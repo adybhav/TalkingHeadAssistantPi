@@ -2,7 +2,7 @@ from flask import Flask, request, send_file
 from modules.asr import transcribe_audio
 from modules.llm import generate_response
 from modules.tts import text_to_speech
-from modules.lipsync import run_lipsync
+from musetalk_runner import run_lipsync
 import time
 app = Flask(__name__)
 
