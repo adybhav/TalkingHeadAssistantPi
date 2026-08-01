@@ -55,13 +55,16 @@ def generate_response(text):
             {"role": "system", "content": pre_prompt},
             {"role": "user", "content": text}
         ]
-
+        ollama_options = {
+            "num_gpu": 0
+        }
         payload = {
             "model": OLLAMA_MODEL,
             "messages": messages,
             "tools": tools_definition,
             "stream": False,
-            "think": False  # Keeps Gemma fast and ensures it outputs the tool call correctly
+            "think": False,
+            "options": ollama_options # Keeps Gemma fast and ensures it outputs the tool call correctly
         }
 
         response = requests.post(OLLAMA_ENDPOINT, json=payload)
@@ -91,7 +94,8 @@ def generate_response(text):
                         "model": OLLAMA_MODEL,
                         "messages": messages,
                         "stream": False,
-                        "think": False
+                        "think": False,
+                        "options": ollama_options
                     }
                     final_response = requests.post(OLLAMA_ENDPOINT, json=final_payload)
                     final_response.raise_for_status()

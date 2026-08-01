@@ -3,7 +3,9 @@ import time
 import contextlib
 
 from modules.llm import generate_response
-from modules.lipsync import run_lipsync
+#from modules.lipsync import run_lipsync
+from musetalk_runner import run_lipsync
+
 
 # THIS IS A TEST FILE FOR TESTING THE LLM and Video Generation on local.
 @contextlib.contextmanager
@@ -22,14 +24,14 @@ def medusa_loop():
     start_time = time.time()
     print("🎙️ done listening")
 
-    transcript = "What are the major headlines today 07/27/2026"
+    transcript = "What is the temperature in Philadelphia right mow?"
     response = generate_response(transcript)
 
     with suppress_console_output():
         text_to_speech(response, "./output_audio.wav")
 
     run_lipsync(
-        "./medusa_01.mp4",
+        "./idle_720p.mp4",
         "./output_audio.wav",
         "./result.mp4",
     )
