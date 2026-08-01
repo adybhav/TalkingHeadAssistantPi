@@ -1,10 +1,15 @@
-# PyTorch stack (CUDA 12.2 / cu128)
-#pip install torch==2.7.1+cu128 torchaudio==2.7.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+# Additional package source for CUDA 12.8 PyTorch wheels
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# PyTorch stack — CUDA 12.8
+torch==2.7.1+cu128
+torchvision==0.22.1+cu128
+torchaudio==2.7.1+cu128
 
 # Whisper
-faster-whisper
+faster-whisper==1.1.1
 
-# Wav2Lip + utilities
+# Wav2Lip and utilities
 numpy
 scipy
 tqdm
@@ -14,11 +19,15 @@ matplotlib
 ffmpeg-python
 sounddevice
 pydub
-# CLI downloader if needed
 gdown
 
-#always listening
-speechrecognition
+#LLM Search
+ddgs==9.14.4
+
+# Always listening
+SpeechRecognition
 requests
-TTS
+
+# Text-to-speech and server
+TTS==0.22.0
 Flask

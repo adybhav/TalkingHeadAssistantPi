@@ -1,6 +1,3 @@
-import subprocess
-import os
-
 import os
 import subprocess
 
@@ -22,7 +19,7 @@ def run_lipsync(video_path, audio_path, output_path):
     ]
 
     # Run Wav2Lip
-    subprocess.run(command, check=True,       stdout=subprocess.DEVNULL,
+    subprocess.run(command, check=True,stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL)
 
 

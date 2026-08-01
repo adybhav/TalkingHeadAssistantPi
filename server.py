@@ -4,8 +4,6 @@ from modules.llm import generate_response
 from modules.tts import text_to_speech
 from modules.lipsync import run_lipsync
 import time
-import os
-
 app = Flask(__name__)
 
 @app.route('/process', methods=['POST'])
