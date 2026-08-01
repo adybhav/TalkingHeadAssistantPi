@@ -2,12 +2,10 @@ import os
 import time
 import contextlib
 
-from modules.asr import transcribe_audio, record_audio
 from modules.llm import generate_response
 from modules.lipsync import run_lipsync
-from waitandwake import wait_for_wake_and_record
 
-
+# THIS IS A TEST FILE FOR TESTING THE LLM and Video Generation on local.
 @contextlib.contextmanager
 def suppress_console_output():
     with open(os.devnull, "w", encoding="utf-8") as devnull:

@@ -43,7 +43,7 @@ def listen_for_wake_word():
                 audio = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                 '''print("🔍 Recognizing..")'''
                 transcript = recognizer.recognize_google(audio).lower()
-                '''print(f"📢 Heard: {transcript")'''
+                # print(f"📢 Heard: {transcript}")
                 if any(phrase in transcript for phrase in WAKE_WORDS):
                     '''print("🟢 Wake word detected")'''
                     return
