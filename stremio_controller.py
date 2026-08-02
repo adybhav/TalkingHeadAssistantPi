@@ -41,7 +41,7 @@ def _classify_title(title):
         return "unknown"
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-flash-latest")
     prompt = f"Is '{title}' a movie or a TV show? Just reply with 'movie' or 'series'."
     response = model.generate_content(prompt)
     answer = response.text.strip().lower()
