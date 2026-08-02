@@ -90,40 +90,24 @@ def listen_for_wake_word():
         while True:
             try:
                 audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
-
                 text  = recognizer.recognize_google(audio).lower()
-
                 if any(p in text for p in WAKE_WORDS):
-
                     return
-
             except sr.WaitTimeoutError:
-
                 continue
-
             except sr.UnknownValueError:
-
                 continue
-
             except sr.RequestError:
-
                 time.sleep(2)
 
-
-
 def record_user_input():
-
     recognizer = sr.Recognizer()
-
     mic = sr.Microphone()
-
     with mic as source:
         recognizer.adjust_for_ambient_noise(source, duration=0.5)
         audio = recognizer.listen(source, timeout=None, phrase_time_limit=12)
     with open(AUDIO_FILE, "wb") as f:
         f.write(audio.get_wav_data())
-
-
 
 def send_audio_to_server():
     try:
