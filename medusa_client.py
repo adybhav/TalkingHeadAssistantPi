@@ -9,6 +9,7 @@ import signal
 import subprocess
 import requests
 import speech_recognition as sr
+from stremio_controller import play_title
 
 # ---- Paths ----
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
@@ -35,8 +36,10 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 # ---- Wake & server ----
 
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
+PLAY_WAKE_PREFIX = "hey medusa play "
 SERVER_URL = "http://192.168.1.157:5000/process"
 VIDEO_PREROLL_SECONDS = 0.35
+RESULT_AUDIO_WARMUP_SECONDS = 0.8
 
 mpv_process = None
 mpv_request_id = 0
@@ -155,6 +158,27 @@ def play_video(path, return_to_idle=True):
     if return_to_idle:
         start_idle_video()
 
+def play_result_video():
+    """Warm HDMI/audio output, restart result, then play visibly with audio."""
+    abs_path = os.path.abspath(OUTPUT_VIDEO)
+    if not os.path.exists(abs_path):
+        return
+
+    load_video(abs_path, loop=False, paused=False)
+    send_mpv_command(["set_property", "mute", True])
+    time.sleep(RESULT_AUDIO_WARMUP_SECONDS)
+    send_mpv_command(["seek", 0, "absolute", "exact"])
+    send_mpv_command(["set_property", "mute", False])
+
+    while mpv_process and mpv_process.poll() is None:
+        try:
+            if get_mpv_property("idle-active") is True:
+                break
+        except (OSError, json.JSONDecodeError, TimeoutError):
+            break
+        time.sleep(0.1)
+    start_idle_video()
+
 def calibrate_microphone():
     """Calibrate once while the user is not speaking."""
     recognizer.pause_threshold = 0.8
@@ -171,8 +195,12 @@ def listen_for_wake_word():
             try:
                 audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
                 text  = recognizer.recognize_google(audio).lower()
+                if text.startswith(PLAY_WAKE_PREFIX):
+                    title = text.removeprefix(PLAY_WAKE_PREFIX).strip()
+                    if title:
+                        return "play", title
                 if any(p in text for p in WAKE_WORDS):
-                    return
+                    return "question", None
             except sr.WaitTimeoutError:
                 continue
             except sr.UnknownValueError:
@@ -202,12 +230,14 @@ def run_client():
     calibrate_microphone()
     start_idle_video()  # keep idle looping in the background
     while True:
-        listen_for_wake_word()   # idle keeps playing
-        play_video(ASK_VIDEO, return_to_idle=False)
+        action, title = listen_for_wake_word()   # idle keeps playing
+        if action == "play":
+            play_title(title)
+            continue
+        play_video(ASK_VIDEO)
         record_user_input()      # idle still playing
-        start_idle_video()
         if send_audio_to_server():
-            play_video(OUTPUT_VIDEO)
+            play_result_video()
 
 if __name__ == "__main__":
     try:
