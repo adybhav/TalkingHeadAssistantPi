@@ -38,6 +38,7 @@ WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 SERVER_URL = "http://192.168.1.157:5000/process"
 
 mpv_process = None
+mpv_request_id = 0
 
 COMMON_MPV_FLAGS = [
     "--no-terminal", "--really-quiet",
@@ -52,11 +53,25 @@ COMMON_MPV_FLAGS = [
 
 def send_mpv_command(command):
     """Send one JSON IPC command to the persistent mpv process."""
+    global mpv_request_id
+    mpv_request_id += 1
+    request_id = mpv_request_id
+
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.settimeout(2)
         client.connect(MPV_SOCKET)
-        client.sendall((json.dumps({"command": command}) + "\n").encode("utf-8"))
-        return json.loads(client.recv(4096).decode("utf-8"))
+        payload = {"command": command, "request_id": request_id}
+        client.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+
+        buffer = ""
+        while True:
+            buffer += client.recv(4096).decode("utf-8")
+            for line in buffer.splitlines():
+                if not line:
+                    continue
+                response = json.loads(line)
+                if response.get("request_id") == request_id:
+                    return response
 
 def get_mpv_property(name):
     """Read one property from the persistent mpv process."""
