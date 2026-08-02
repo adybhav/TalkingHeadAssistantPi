@@ -2,6 +2,8 @@ import os
 
 os.environ["ALSA_LOG_LEVEL"] = "none"  # silence ALSA spam
 
+import json
+import socket
 import time
 import signal
 import subprocess
@@ -11,8 +13,10 @@ import speech_recognition as sr
 # ---- Paths ----
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 IDLE_VIDEO   = os.path.join(BASE_DIR, "idle.mp4")
+ASK_VIDEO    = os.path.join(BASE_DIR, "askmeaquestion.mp4")
 OUTPUT_VIDEO = os.path.join(BASE_DIR, "result.mp4")
 AUDIO_FILE   = os.path.join(BASE_DIR, "input_audio.wav")
+MPV_SOCKET   = "/tmp/medusa-mpv.sock"
 
 
 # ---- Display + rotation ----
@@ -33,7 +37,7 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 SERVER_URL = "http://192.168.1.157:5000/process"
 
-idle_process = None
+mpv_process = None
 
 COMMON_MPV_FLAGS = [
     "--no-terminal", "--really-quiet",
@@ -41,46 +45,93 @@ COMMON_MPV_FLAGS = [
     "--gpu-context=drm",               # render directly to console (no X)
     f"--video-rotate={ROTATE_DEG}",
     f"--vf={VF_COVER}",                # force fill screen regardless of source AR
+    "--audio-stream-silence=yes",      # keep audio device warm between clips
     "--input-default-bindings=no",
     "--input-vo-keyboard=no",
 ]
 
-def start_idle_video():
-    """Start looping idle video with mpv and keep a handle to it."""
-    global idle_process
-    if idle_process and idle_process.poll() is None:
+def send_mpv_command(command):
+    """Send one JSON IPC command to the persistent mpv process."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(2)
+        client.connect(MPV_SOCKET)
+        client.sendall((json.dumps({"command": command}) + "\n").encode("utf-8"))
+        return json.loads(client.recv(4096).decode("utf-8"))
+
+def get_mpv_property(name):
+    """Read one property from the persistent mpv process."""
+    response = send_mpv_command(["get_property", name])
+    return response.get("data")
+
+def start_mpv():
+    """Start one persistent mpv process so the display never drops to desktop."""
+    global mpv_process
+    if mpv_process and mpv_process.poll() is None:
         return
-    if not os.path.exists(IDLE_VIDEO):
-        return
-    cmd = ["mpv", *COMMON_MPV_FLAGS, "--loop-file=inf", IDLE_VIDEO]
-    idle_process = subprocess.Popen(
+
+    try:
+        os.unlink(MPV_SOCKET)
+    except FileNotFoundError:
+        pass
+
+    cmd = [
+        "mpv", *COMMON_MPV_FLAGS,
+        f"--input-ipc-server={MPV_SOCKET}",
+        "--idle=yes",
+        "--force-window=yes",
+        "--loop-file=inf",
+    ]
+    mpv_process = subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         preexec_fn=os.setsid
     )
-    time.sleep(0.3)  # let mpv appear
+
+    for _ in range(20):
+        if os.path.exists(MPV_SOCKET):
+            return
+        time.sleep(0.1)
+
+def load_video(path, loop=False):
+    """Load a video into the persistent mpv process."""
+    abs_path = os.path.abspath(path)
+    if not os.path.exists(abs_path):
+        return False
+    start_mpv()
+    send_mpv_command(["set_property", "loop-file", "inf" if loop else "no"])
+    send_mpv_command(["loadfile", abs_path, "replace"])
+    return True
+
+def start_idle_video():
+    """Start or switch back to the looping idle video."""
+    load_video(IDLE_VIDEO, loop=True)
 
 def stop_idle_video():
-    """Stop idle video cleanly."""
-    global idle_process
-    if idle_process and idle_process.poll() is None:
-        idle_process.send_signal(signal.SIGINT)
+    """Stop mpv cleanly."""
+    global mpv_process
+    if mpv_process and mpv_process.poll() is None:
+        mpv_process.send_signal(signal.SIGINT)
         try:
-            idle_process.wait(timeout=2)
+            mpv_process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            idle_process.kill()
-    idle_process = None
+            mpv_process.kill()
+    mpv_process = None
 
 def play_video(path):
-    """Play a single video fullscreen; returns when it ends."""
+    """Play a single video fullscreen, then return to idle."""
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
         return
-    cmd = ["mpv", *COMMON_MPV_FLAGS, "--loop-file=no", abs_path]
-    subprocess.run(
-        cmd,
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    )
+    load_video(abs_path, loop=False)
+    time.sleep(0.2)
+    while mpv_process and mpv_process.poll() is None:
+        try:
+            if get_mpv_property("idle-active") is True:
+                break
+        except (OSError, json.JSONDecodeError, TimeoutError):
+            break
+        time.sleep(0.1)
+    start_idle_video()
 
 def listen_for_wake_word():
     recognizer = sr.Recognizer()
@@ -125,12 +176,14 @@ def run_client():
     start_idle_video()  # keep idle looping in the background
     while True:
         listen_for_wake_word()   # idle keeps playing
+        play_video(ASK_VIDEO)
         record_user_input()      # idle still playing
         if send_audio_to_server():
-            stop_idle_video()    # pause idle
             play_video(OUTPUT_VIDEO)
-            start_idle_video()   # resume idle
 
 if __name__ == "__main__":
-    run_client()
+    try:
+        run_client()
+    finally:
+        stop_idle_video()
 
