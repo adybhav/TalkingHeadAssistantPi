@@ -36,9 +36,12 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 SERVER_URL = "http://192.168.1.157:5000/process"
+VIDEO_PREROLL_SECONDS = 0.35
 
 mpv_process = None
 mpv_request_id = 0
+recognizer = sr.Recognizer()
+mic = sr.Microphone()
 
 COMMON_MPV_FLAGS = [
     "--no-terminal", "--really-quiet",
@@ -47,6 +50,7 @@ COMMON_MPV_FLAGS = [
     f"--video-rotate={ROTATE_DEG}",
     f"--vf={VF_COVER}",                # force fill screen regardless of source AR
     "--audio-stream-silence=yes",      # keep audio device warm between clips
+    "--gapless-audio=yes",
     "--input-default-bindings=no",
     "--input-vo-keyboard=no",
 ]
@@ -107,12 +111,13 @@ def start_mpv():
             return
         time.sleep(0.1)
 
-def load_video(path, loop=False):
+def load_video(path, loop=False, paused=False):
     """Load a video into the persistent mpv process."""
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
         return False
     start_mpv()
+    send_mpv_command(["set_property", "pause", paused])
     send_mpv_command(["set_property", "loop-file", "inf" if loop else "no"])
     send_mpv_command(["loadfile", abs_path, "replace"])
     return True
@@ -132,13 +137,14 @@ def stop_idle_video():
             mpv_process.kill()
     mpv_process = None
 
-def play_video(path):
+def play_video(path, return_to_idle=True):
     """Play a single video fullscreen, then return to idle."""
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
         return
-    load_video(abs_path, loop=False)
-    time.sleep(0.2)
+    load_video(abs_path, loop=False, paused=True)
+    time.sleep(VIDEO_PREROLL_SECONDS)
+    send_mpv_command(["set_property", "pause", False])
     while mpv_process and mpv_process.poll() is None:
         try:
             if get_mpv_property("idle-active") is True:
@@ -146,13 +152,21 @@ def play_video(path):
         except (OSError, json.JSONDecodeError, TimeoutError):
             break
         time.sleep(0.1)
-    start_idle_video()
+    if return_to_idle:
+        start_idle_video()
+
+def calibrate_microphone():
+    """Calibrate once while the user is not speaking."""
+    recognizer.pause_threshold = 0.8
+    recognizer.non_speaking_duration = 0.2
+    recognizer.dynamic_energy_threshold = True
+    with mic as source:
+        recognizer.adjust_for_ambient_noise(source, duration=0.75)
+    recognizer.energy_threshold = max(100, recognizer.energy_threshold * 0.8)
+    recognizer.dynamic_energy_threshold = False
 
 def listen_for_wake_word():
-    recognizer = sr.Recognizer()
-    mic = sr.Microphone()
     with mic as source:
-        recognizer.adjust_for_ambient_noise(source, duration=0.5)
         while True:
             try:
                 audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
@@ -167,10 +181,7 @@ def listen_for_wake_word():
                 time.sleep(2)
 
 def record_user_input():
-    recognizer = sr.Recognizer()
-    mic = sr.Microphone()
     with mic as source:
-        recognizer.adjust_for_ambient_noise(source, duration=0.5)
         audio = recognizer.listen(source, timeout=None, phrase_time_limit=12)
     with open(AUDIO_FILE, "wb") as f:
         f.write(audio.get_wav_data())
@@ -188,11 +199,13 @@ def send_audio_to_server():
         return False
 
 def run_client():
+    calibrate_microphone()
     start_idle_video()  # keep idle looping in the background
     while True:
         listen_for_wake_word()   # idle keeps playing
-        play_video(ASK_VIDEO)
+        play_video(ASK_VIDEO, return_to_idle=False)
         record_user_input()      # idle still playing
+        start_idle_video()
         if send_audio_to_server():
             play_video(OUTPUT_VIDEO)
 
