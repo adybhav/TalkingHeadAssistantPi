@@ -24,6 +24,26 @@ def _adb(args):
     return result.stdout.strip()
 
 
+def _current_foreground_package():
+    output = _adb(["shell", "dumpsys", "window"])
+    for line in output.splitlines():
+        if "mCurrentFocus" in line or "mFocusedApp" in line:
+            if PACKAGE in line:
+                return PACKAGE
+    return None
+
+
+def _launch_stremio(max_attempts=3):
+    for attempt in range(max_attempts):
+        _adb(["shell", "monkey", "-p", PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"])
+        time.sleep(1.0 + attempt * 0.5)
+
+        if _current_foreground_package() == PACKAGE:
+            return True
+
+    return False
+
+
 def _press(key, delay=0.1):
     _adb(["shell", "input", "keyevent", str(key)])
     time.sleep(delay)
@@ -93,8 +113,8 @@ def play_title(title):
     if device_ip:
         _adb(["connect", device_ip])
 
-    _adb(["shell", "monkey", "-p", PACKAGE, "-c", "android.intent.category.LAUNCHER", "1"])
-    time.sleep(0.5)
+    if not _launch_stremio():
+        return False
 
     content_type = _classify_title(title)
     _navigate_to_search()

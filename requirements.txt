@@ -27,6 +27,8 @@ ddgs==9.14.4
 # Always listening
 SpeechRecognition
 requests
+google-generativeai
+python-dotenv
 
 # Text-to-speech and server
 TTS==0.22.0
