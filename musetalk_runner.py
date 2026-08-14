@@ -21,7 +21,7 @@ REFERENCE_VIDEO = Path(
 
 AVATAR_ID = "talking_head"
 FPS = 15
-BATCH_SIZE = 12
+BATCH_SIZE = 8
 
 
 class MuseTalkWorker:
