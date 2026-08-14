@@ -3,7 +3,15 @@ from scipy.io.wavfile import write
 from faster_whisper import WhisperModel
 import os
 
-model = WhisperModel("small", compute_type="float16")
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8_float32")
+
+model = WhisperModel(
+    WHISPER_MODEL_SIZE,
+    device=WHISPER_DEVICE,
+    compute_type=WHISPER_COMPUTE_TYPE,
+)
 
 def record_audio(out_path="assets/input_audio.wav", duration=5, fs=16000):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

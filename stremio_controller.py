@@ -53,22 +53,40 @@ def _classify_title(title):
     _load_dotenv_if_available()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return "unknown"
+        return _classify_title_locally(title)
 
     try:
         import google.generativeai as genai
     except ImportError:
-        return "unknown"
+        return _classify_title_locally(title)
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
-    prompt = f"Is '{title}' a movie or a TV show? Just reply with 'movie' or 'series'."
-    response = model.generate_content(prompt)
-    answer = response.text.strip().lower()
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-flash-latest")
+        prompt = f"Is '{title}' a movie or a TV show? Just reply with 'movie' or 'series'."
+        response = model.generate_content(prompt)
+        answer = response.text.strip().lower()
+    except Exception:
+        return _classify_title_locally(title)
 
     if "movie" in answer:
         return "movie"
     if "series" in answer or "tv show" in answer:
+        return "series"
+    return _classify_title_locally(title)
+
+
+def _classify_title_locally(title):
+    title = title.lower()
+    series_markers = [
+        "season",
+        "episode",
+        "series",
+        "show",
+        "s01",
+        "s1",
+    ]
+    if any(marker in title for marker in series_markers):
         return "series"
     return "unknown"
 

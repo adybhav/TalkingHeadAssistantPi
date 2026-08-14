@@ -37,6 +37,7 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 PLAY_WAKE_PREFIX = "hey medusa play "
+PLAY_TEXT_PREFIX = "play "
 SERVER_URL = "http://192.168.1.157:5000/process"
 VIDEO_PREROLL_SECONDS = 0.35
 RESULT_AUDIO_WARMUP_SECONDS = 0.8
@@ -45,6 +46,7 @@ mpv_process = None
 mpv_request_id = 0
 recognizer = sr.Recognizer()
 mic = sr.Microphone()
+speech_service_unavailable = False
 
 COMMON_MPV_FLAGS = [
     "--no-terminal", "--really-quiet",
@@ -189,24 +191,58 @@ def calibrate_microphone():
     recognizer.energy_threshold = max(100, recognizer.energy_threshold * 0.8)
     recognizer.dynamic_energy_threshold = False
 
+def parse_command_text(text):
+    """Convert recognized or typed text into a client action."""
+    text = text.strip().lower()
+    if not text:
+        return None, None
+
+    if text.startswith(PLAY_WAKE_PREFIX):
+        title = text.removeprefix(PLAY_WAKE_PREFIX).strip()
+        if title:
+            return "play", title
+
+    if text.startswith(PLAY_TEXT_PREFIX):
+        title = text.removeprefix(PLAY_TEXT_PREFIX).strip()
+        if title:
+            return "play", title
+
+    if any(p in text for p in WAKE_WORDS) or text in {"ask", "question"}:
+        return "question", None
+
+    return None, None
+
+def listen_for_text_command():
+    """Fallback command input for offline machines without cloud STT."""
+    while True:
+        text = input("Offline command (play <title>, ask): ")
+        action, title = parse_command_text(text)
+        if action:
+            return action, title
+        print("Use: play <title> or ask")
+
 def listen_for_wake_word():
+    global speech_service_unavailable
+    if os.getenv("MEDUSA_TEXT_COMMANDS", "").lower() in {"1", "true", "yes"}:
+        return listen_for_text_command()
+
     with mic as source:
         while True:
             try:
                 audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
-                text  = recognizer.recognize_google(audio).lower()
-                if text.startswith(PLAY_WAKE_PREFIX):
-                    title = text.removeprefix(PLAY_WAKE_PREFIX).strip()
-                    if title:
-                        return "play", title
-                if any(p in text for p in WAKE_WORDS):
-                    return "question", None
+                text  = recognizer.recognize_google(audio)
+                action, title = parse_command_text(text)
+                if action:
+                    return action, title
             except sr.WaitTimeoutError:
                 continue
             except sr.UnknownValueError:
                 continue
             except sr.RequestError:
-                time.sleep(2)
+                if not speech_service_unavailable:
+                    print("Google speech recognition unavailable; using typed commands.")
+                    speech_service_unavailable = True
+                return listen_for_text_command()
 
 def record_user_input():
     with mic as source:
