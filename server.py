@@ -11,7 +11,7 @@ app = Flask(__name__)
 RESPONSE_AUDIO_PATH = "output_audio.wav"
 PADDED_RESPONSE_AUDIO_PATH = "output_audio_padded.wav"
 RESPONSE_PREROLL_SECONDS = 1.0
-USE_OLLAMA = True
+USE_OLLAMA = False
 
 def prepend_silence(input_path, output_path, seconds):
     """Add leading silence so playback devices do not clip the first words."""

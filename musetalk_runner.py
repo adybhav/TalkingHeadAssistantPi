@@ -16,7 +16,7 @@ MUSETALK_PYTHON = (
 )
 
 REFERENCE_VIDEO = Path(
-    r"C:\Projects\TalkingHeadAssistant\idle_720p.mp4"
+    r"C:\Projects\TalkingHeadAssistantPi\idle_720p.mp4"
 )
 
 AVATAR_ID = "talking_head"
