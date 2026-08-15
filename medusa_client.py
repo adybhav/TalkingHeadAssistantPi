@@ -203,11 +203,6 @@ def parse_command_text(text):
         if title:
             return "play", title
 
-    # if text.startswith(PLAY_TEXT_PREFIX):
-    #     title = text.removeprefix(PLAY_TEXT_PREFIX).strip()
-    #     if title:
-    #         return "play", title
-
     if any(p in text for p in WAKE_WORDS) or text in {"ask", "question"}:
         return "question", None
 
@@ -257,7 +252,7 @@ def send_audio_to_server():
             r = requests.post(
                 SERVER_URL,
                 files={"audio": audio_file},
-                timeout=180,
+                timeout=500,
             )
         if r.status_code == 200:
             with open(OUTPUT_VIDEO, "wb") as f:
