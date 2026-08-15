@@ -203,10 +203,10 @@ def parse_command_text(text):
         if title:
             return "play", title
 
-    if text.startswith(PLAY_TEXT_PREFIX):
-        title = text.removeprefix(PLAY_TEXT_PREFIX).strip()
-        if title:
-            return "play", title
+    # if text.startswith(PLAY_TEXT_PREFIX):
+    #     title = text.removeprefix(PLAY_TEXT_PREFIX).strip()
+    #     if title:
+    #         return "play", title
 
     if any(p in text for p in WAKE_WORDS) or text in {"ask", "question"}:
         return "question", None
