@@ -38,8 +38,11 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 PLAY_WAKE_PREFIX = "hey medusa play "
 PLAY_TEXT_PREFIX = "play "
-SERVER_URL = "http://192.168.1.205:5000/process"
+PRIMARY_SERVER_URL = "http://192.168.1.157:5000/process"
+FALLBACK_SERVER_URL = "http://192.168.1.205:5000/process"
+SERVER_URL = FALLBACK_SERVER_URL
 USE_OLLAMA = False
+SERVER_CHECK_TIMEOUT_SECONDS = 2
 VIDEO_PREROLL_SECONDS = 0.35
 RESULT_AUDIO_WARMUP_SECONDS = 0.8
 
@@ -246,11 +249,29 @@ def record_user_input():
     with open(AUDIO_FILE, "wb") as f:
         f.write(audio.get_wav_data())
 
+def select_server_url():
+    """Prefer the primary server when reachable, otherwise use fallback."""
+    global SERVER_URL
+    try:
+        response = requests.get(
+            PRIMARY_SERVER_URL.rsplit("/", 1)[0],
+            timeout=SERVER_CHECK_TIMEOUT_SECONDS,
+        )
+        if response.status_code < 500:
+            SERVER_URL = PRIMARY_SERVER_URL
+            return SERVER_URL
+    except requests.RequestException:
+        pass
+
+    SERVER_URL = FALLBACK_SERVER_URL
+    return SERVER_URL
+
 def send_audio_to_server():
     try:
+        server_url = select_server_url()
         with open(AUDIO_FILE, "rb") as audio_file:
             r = requests.post(
-                SERVER_URL,
+                server_url,
                 files={"audio": audio_file},
                 timeout=500,
             )
