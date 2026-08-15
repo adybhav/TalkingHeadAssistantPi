@@ -1,6 +1,6 @@
 from flask import Flask, request, send_file
 from modules.asr import transcribe_audio
-from modules.llm import generate_response
+from modules.llm_provider import generate_response
 from modules.tts import text_to_speech
 from musetalk_runner import run_lipsync
 import time
@@ -11,6 +11,7 @@ app = Flask(__name__)
 RESPONSE_AUDIO_PATH = "output_audio.wav"
 PADDED_RESPONSE_AUDIO_PATH = "output_audio_padded.wav"
 RESPONSE_PREROLL_SECONDS = 1.0
+USE_OLLAMA = True
 
 def prepend_silence(input_path, output_path, seconds):
     """Add leading silence so playback devices do not clip the first words."""
@@ -37,7 +38,7 @@ def process_audio():
     start = time.time()
     transcript = transcribe_audio(audio_path)
     print(transcript)
-    response = generate_response(transcript)
+    response = generate_response(transcript, use_ollama=USE_OLLAMA)
     text_to_speech(response, RESPONSE_AUDIO_PATH)
     prepend_silence(RESPONSE_AUDIO_PATH, PADDED_RESPONSE_AUDIO_PATH, RESPONSE_PREROLL_SECONDS)
     run_lipsync("idle_720p.mp4", PADDED_RESPONSE_AUDIO_PATH, output_video_path)

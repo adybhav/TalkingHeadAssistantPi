@@ -38,7 +38,8 @@ VF_COVER = f"scale={SCREEN_W}:{SCREEN_H}:force_original_aspect_ratio=increase,cr
 WAKE_WORDS = ["hey medusa", "gaze into my eyes"]
 PLAY_WAKE_PREFIX = "hey medusa play "
 PLAY_TEXT_PREFIX = "play "
-SERVER_URL = "http://192.168.1.157:5000/process"
+SERVER_URL = "http://192.168.1.205:5000/process"
+USE_OLLAMA = False
 VIDEO_PREROLL_SECONDS = 0.35
 RESULT_AUDIO_WARMUP_SECONDS = 0.8
 
@@ -253,7 +254,11 @@ def record_user_input():
 def send_audio_to_server():
     try:
         with open(AUDIO_FILE, "rb") as audio_file:
-            r = requests.post(SERVER_URL, files={"audio": audio_file}, timeout=180)
+            r = requests.post(
+                SERVER_URL,
+                files={"audio": audio_file},
+                timeout=180,
+            )
         if r.status_code == 200:
             with open(OUTPUT_VIDEO, "wb") as f:
                 f.write(r.content)
