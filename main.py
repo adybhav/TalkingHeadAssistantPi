@@ -2,7 +2,7 @@ import os
 import time
 import contextlib
 
-from modules.llm import generate_response
+from modules.gemini_llm import generate_response
 #from modules.lipsync import run_lipsync
 from musetalk_runner import run_lipsync
 
