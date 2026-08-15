@@ -3,9 +3,9 @@ from scipy.io.wavfile import write
 from faster_whisper import WhisperModel
 import os
 
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")
-WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
-WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8_float32")
+WHISPER_MODEL_SIZE = "small"
+WHISPER_DEVICE = "cpu"
+WHISPER_COMPUTE_TYPE = "int8"
 
 model = WhisperModel(
     WHISPER_MODEL_SIZE,
