@@ -20,8 +20,8 @@ REFERENCE_VIDEO = Path(
 )
 
 AVATAR_ID = "talking_head"
-FPS = 15
-BATCH_SIZE = 12
+FPS = 14
+BATCH_SIZE = 16
 
 
 class MuseTalkWorker:
