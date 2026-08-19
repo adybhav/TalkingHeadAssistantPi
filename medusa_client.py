@@ -7,6 +7,7 @@ import socket
 import time
 import signal
 import subprocess
+import threading
 import requests
 import speech_recognition as sr
 from stremio_controller import play_title
@@ -15,6 +16,7 @@ from stremio_controller import play_title
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 IDLE_VIDEO   = os.path.join(BASE_DIR, "idle.mp4")
 ASK_VIDEO    = os.path.join(BASE_DIR, "askmeaquestion.mp4")
+AFTER_PROMPT_SENT_VIDEO = os.path.join(BASE_DIR, "AfterPromptSent.mp4")
 OUTPUT_VIDEO = os.path.join(BASE_DIR, "result.mp4")
 AUDIO_FILE   = os.path.join(BASE_DIR, "input_audio.wav")
 MPV_SOCKET   = "/tmp/medusa-mpv.sock"
@@ -283,6 +285,17 @@ def send_audio_to_server():
     except requests.RequestException:
         return False
 
+def send_audio_to_server_async():
+    """Send recorded audio in the background while transition video plays."""
+    result = {"success": False}
+
+    def worker():
+        result["success"] = send_audio_to_server()
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    return thread, result
+
 def run_client():
     calibrate_microphone()
     start_idle_video()  # keep idle looping in the background
@@ -293,7 +306,10 @@ def run_client():
             continue
         play_video(ASK_VIDEO)
         record_user_input()      # idle still playing
-        if send_audio_to_server():
+        upload_thread, upload_result = send_audio_to_server_async()
+        play_video(AFTER_PROMPT_SENT_VIDEO)
+        upload_thread.join()
+        if upload_result["success"]:
             play_result_video()
 
 if __name__ == "__main__":
