@@ -2,9 +2,12 @@ import os
 import time
 import contextlib
 
-from modules.gemini_llm import generate_response
+from modules.llm_provider import generate_response
 #from modules.lipsync import run_lipsync
 from musetalk_runner import run_lipsync
+
+
+USE_OLLAMA = False
 
 
 # THIS IS A TEST FILE FOR TESTING THE LLM and Video Generation on local.
@@ -24,8 +27,8 @@ def medusa_loop():
     start_time = time.time()
     print("🎙️ done listening")
 
-    transcript = "What is the temperature in Philadelphia right mow?"
-    response = generate_response(transcript)
+    transcript = "What is the temperature in Philadelphia right mow? Should I wear a jacket?"
+    response = "What is the temperature in Philadelphia right mow? Should I wear a jacket?"# generate_response(transcript, use_ollama=USE_OLLAMA)
 
     with suppress_console_output():
         text_to_speech(response, "./output_audio.wav")
