@@ -2,7 +2,7 @@ from flask import Flask, request, send_file
 from modules.asr import transcribe_audio
 from modules.llm_provider import generate_response
 from modules.tts import text_to_speech
-from musetalk_runner import run_lipsync
+from musetalk_runner import preload_worker, run_lipsync
 import time
 import wave
 
@@ -48,4 +48,5 @@ def process_audio():
     return send_file(output_video_path, mimetype="video/mp4")
 
 if __name__ == '__main__':
+    preload_worker()
     app.run(host="0.0.0.0", port=5000)

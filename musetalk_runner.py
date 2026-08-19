@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import atexit
 import json
+import math
 import os
 import shutil
 import subprocess
+import tempfile
 import threading
 import uuid
+import wave
 from pathlib import Path
 
 
@@ -20,18 +23,20 @@ REFERENCE_VIDEO = Path(
 )
 
 AVATAR_ID = "talking_head"
-FPS = 15
-BATCH_SIZE = 8
+FPS = 14
+BATCH_SIZE = 5
 
 
 class MuseTalkWorker:
     """A persistent MuseTalk subprocess with models loaded once."""
 
-    def __init__(self) -> None:
+    def __init__(self, batch_size: int = BATCH_SIZE) -> None:
         if not MUSETALK_PYTHON.is_file():
             raise FileNotFoundError(
                 f"MuseTalk Python was not found: {MUSETALK_PYTHON}"
             )
+
+        self.batch_size = batch_size
 
         if not REFERENCE_VIDEO.is_file():
             raise FileNotFoundError(
@@ -81,7 +86,7 @@ class MuseTalkWorker:
             "--fps",
             str(FPS),
             "--batch_size",
-            str(BATCH_SIZE),
+            str(self.batch_size),
             "--gpu_id",
             "0",
             "--extra_margin",
@@ -246,9 +251,52 @@ class MuseTalkWorker:
             self.process.terminate()
 
 
-# Create this once when TalkingHeadAssistant starts.
-_worker = MuseTalkWorker()
-atexit.register(_worker.close)
+# Created lazily on first use so importing this module doesn't launch a GPU worker.
+_worker: MuseTalkWorker | None = None
+_worker_lock = threading.Lock()
+
+
+def _get_worker() -> MuseTalkWorker:
+    global _worker
+
+    if _worker is None:
+        with _worker_lock:
+            if _worker is None:
+                _worker = MuseTalkWorker()
+                atexit.register(_worker.close)
+
+    return _worker
+
+
+def preload_worker() -> None:
+    """Load models now and run a throwaway inference so cudnn/CUDA kernels are
+    already compiled before the first real request comes in."""
+    worker = _get_worker()
+
+    # Long enough to include at least one full-size batch, matching production shapes.
+    warmup_seconds = math.ceil(worker.batch_size / FPS) + 1
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        warmup_audio_path = temp_dir_path / "warmup_silence.wav"
+        warmup_output_path = temp_dir_path / "warmup_output.mp4"
+
+        _write_silence(warmup_audio_path, seconds=warmup_seconds)
+
+        print("Warming up MuseTalk worker...")
+        worker.generate(warmup_audio_path, warmup_output_path)
+        print("MuseTalk worker warm-up complete.")
+
+
+def _write_silence(path: Path, seconds: float, framerate: int = 16000) -> None:
+    frame_count = int(framerate * seconds)
+    silence = b"\x00\x00" * frame_count
+
+    with wave.open(str(path), "wb") as destination:
+        destination.setnchannels(1)
+        destination.setsampwidth(2)
+        destination.setframerate(framerate)
+        destination.writeframes(silence)
 
 
 def run_lipsync(
@@ -269,7 +317,7 @@ def run_lipsync(
             f"{REFERENCE_VIDEO}"
         )
 
-    return _worker.generate(
+    return _get_worker().generate(
         audio_path=audio_path,
         output_path=output_path,
     )
