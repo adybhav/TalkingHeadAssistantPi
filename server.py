@@ -49,4 +49,8 @@ def process_audio():
 
 if __name__ == '__main__':
     preload_worker()
+
+    if not USE_OLLAMA:
+        import modules.gemini_llm  # noqa: F401  (import now warms up the Gemini client)
+
     app.run(host="0.0.0.0", port=5000)
